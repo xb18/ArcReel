@@ -198,6 +198,36 @@ describe("OverviewCanvas", () => {
     );
   });
 
+  it("marks only the unpriced media type as unknown in the details popover", async () => {
+    const user = userEvent.setup();
+    const relay = { provider: "custom-3", provider_name: "Relay", count: 1 } as const;
+    setCost(
+      "demo",
+      {},
+      {
+        project_totals: { estimate: { image: { USD: 2 } }, actual: {} },
+        unpriced: {
+          estimate: [{ ...relay, call_type: "audio", model: "tts" }],
+          actual: [{ ...relay, call_type: "video", model: "vid" }],
+        },
+      },
+    );
+    renderOverview();
+
+    await user.click(screen.getByRole("button", { name: "明细" }));
+    const popover = await screen.findByRole("dialog", { name: "费用明细" });
+    // 每个标签在预估、已花两列各出现一次，按列序取值
+    const values = (label: string) =>
+      within(popover)
+        .getAllByText(label, { selector: "dt" })
+        .map((term) => term.nextElementSibling?.textContent);
+
+    expect(values("分镜")).toEqual(["$2.00", "0"]);
+    expect(values("视频")).toEqual(["0", "—"]);
+    // 只有没计价的配音时也要列出这一行，不能让它从明细里消失
+    expect(values("旁白配音")).toEqual(["—"]);
+  });
+
   it("does not fetch cost on a read-only project and cancels a real project's queued request", async () => {
     vi.useFakeTimers();
     const getCostEstimate = vi.spyOn(API, "getCostEstimate");
